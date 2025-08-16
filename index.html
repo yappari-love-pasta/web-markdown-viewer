@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ja" class="h-full">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Markdown Viewer (Mermaid対応)</title>
+
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Tailwind Config: enable dark mode via class
+        tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial'] }}}}
+    </script>
+    <!-- Inter font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <!-- Markdown renderer -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Syntax highlight for code blocks -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
+
+    <!-- Mermaid -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+
+    <!-- svg-pan-zoom -->
+    <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+
+    <style>
+        /* Prose-like defaults */
+        .prose h1 { @apply text-3xl font-bold mt-8 mb-4; }
+        .prose h2 { @apply text-2xl font-semibold mt-6 mb-3; }
+        .prose h3 { @apply text-xl font-semibold mt-4 mb-2; }
+        .prose p { @apply leading-7 my-4; }
+        .prose ul, .prose ol { @apply my-4 pl-6; }
+        .prose li { @apply my-2; }
+        .prose code { @apply px-1 py-0.5 rounded bg-slate-800/80 text-slate-100; }
+        .prose pre code { @apply bg-transparent p-0; }
+        .prose pre { @apply rounded-xl p-4 overflow-auto bg-slate-900 text-slate-100 shadow-inner; }
+        .prose table { @apply w-full border-collapse my-4; }
+        .prose th, .prose td { @apply border border-slate-300 dark:border-slate-700 px-3 py-2; }
+        .prose blockquote { @apply border-l-4 border-slate-300 dark:border-slate-600 pl-4 italic text-slate-700 dark:text-slate-300; }
+        .mermaid {
+            width: 100%;
+            min-height: 800px;
+            min-width: 1000px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .mermaid svg {
+            width: 90% !important;
+            height: auto !important;
+            max-width: none;
+            min-width: 1200px;
+            min-height: inherit;
+        }
+
+
+    </style>
+</head>
+<body class="h-full bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900 text-slate-900 dark:text-slate-100">
+    <div class="min-h-full flex flex-col">
+        <!-- Header / Toolbar -->
+        <header class="sticky top-0 z-50 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-slate-900/60 bg-white/90 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800">
+            <div class="max-w-4xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
+                <div class="flex items-center gap-2 mr-auto">
+                <div class="w-8 h-8 grid place-items-center rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900">ま</div>
+                <div class="font-semibold">ま～くだうんViewer</div>
+                </div>
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                <select id="mdPath" class="flex-1 sm:w-64 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="">MDファイルを選択してください...</option>
+                </select>
+                <button id="loadBtn" class="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow">読み込む</button>
+                <label class="ml-1 inline-flex items-center gap-2 text-sm cursor-pointer select-none">
+                    <input id="darkToggle" type="checkbox" class="peer sr-only" />
+                    <span class="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 peer-checked:bg-slate-900 peer-checked:text-white">🌙</span>
+                </label>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main content -->
+        <main class="flex-1 py-8">
+            <div class="max-w-7xl mx-auto px-4">
+                <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/70 shadow-xl">
+                <div id="content" class="prose max-w-none p-6 sm:p-8"></div>
+                </div>
+            </div>
+        </main>
+
+        <!-- <footer class="py-6 text-center text-sm text-slate-500 dark:text-slate-400">
+            シングルHTMLで Markdown を読み込み・表示します。Mermaid コードブロック (```mermaid) を自動描画。<br>
+            図はドラッグで移動、ホイールやボタンで拡大縮小できます。
+        </footer> -->
+    </div>
+
+    <script>
+        // Dark mode initial state based on system preference
+        const root = document.documentElement;
+        const darkToggle = document.getElementById('darkToggle');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const savedTheme = localStorage.getItem('mdviewer-theme');
+        const isDark = savedTheme ? savedTheme === 'dark' : prefersDark;
+        root.classList.toggle('dark', isDark);
+        darkToggle.checked = isDark;
+        darkToggle.addEventListener('change', () => {
+        root.classList.toggle('dark', darkToggle.checked);
+        localStorage.setItem('mdviewer-theme', darkToggle.checked ? 'dark' : 'light');
+        });
+
+        // Mermaid init (we'll run again after injecting content)
+        mermaid.initialize({ startOnLoad: false, theme: isDark ? 'dark' : 'default' });
+
+        // Marked setup
+        marked.setOptions({
+        gfm: true,
+        breaks: false,
+        highlight: function(code, lang) {
+            try { return hljs.highlight(code, { language: lang }).value; } catch(e) { return hljs.highlightAuto(code).value; }
+        }
+        });
+
+        function enableZoom() {
+        document.querySelectorAll('.mermaid svg').forEach(svgEl => {
+            svgPanZoom(svgEl, {
+            zoomEnabled: true,
+            controlIconsEnabled: true,
+            fit: true,
+            center: true,
+            minZoom: 0.2,
+            maxZoom: 5
+            });
+        });
+        }
+
+        function renderMarkdown(mdText) {
+        // Convert markdown to HTML
+        const html = marked.parse(mdText);
+        const container = document.getElementById('content');
+        container.innerHTML = html;
+
+        // Replace ```mermaid blocks into <div class="mermaid"> for Mermaid to render
+        const codeBlocks = container.querySelectorAll('pre > code.language-mermaid');
+        codeBlocks.forEach((codeEl) => {
+            const pre = codeEl.parentElement;
+            const wrapper = document.createElement('div');
+            wrapper.className = 'mermaid my-6';
+            wrapper.textContent = codeEl.textContent;
+            pre.replaceWith(wrapper);
+        });
+
+        // Render mermaid diagrams
+        mermaid.initialize({ startOnLoad: false, theme: root.classList.contains('dark') ? 'dark' : 'default' });
+        mermaid.run({ querySelector: '.mermaid' }).then(() => {
+            enableZoom();
+        });
+
+        // Add anchor links for headings
+        addHeadingAnchors(container);
+        }
+
+        function addHeadingAnchors(rootEl) {
+        const headings = rootEl.querySelectorAll('h1, h2, h3, h4');
+        headings.forEach(h => {
+            const id = h.id || h.textContent.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
+            h.id = id;
+            if (!h.querySelector('a.anchor')) {
+            const a = document.createElement('a');
+            a.href = `#${id}`;
+            a.className = 'anchor no-underline opacity-0 hover:opacity-100 transition-opacity ml-2 text-slate-400';
+            a.textContent = '#';
+            h.appendChild(a);
+            }
+        });
+        }
+
+        async function loadMarkdown(src) {
+        const content = document.getElementById('content');
+        try {
+            content.innerHTML = '<div class="text-center py-16"><div class="animate-pulse">読み込み中…</div></div>';
+            const res = await fetch('./md_file/'+src);
+            if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+            const text = await res.text();
+            renderMarkdown(text);
+        } catch (err) {
+            content.innerHTML = `<div class="p-6 text-red-600 dark:text-red-400">読み込みに失敗しました: ${err.message}<br>同一オリジン上のパス、またはローカルで簡易HTTPサーバーを起動してアクセスしてください（file:// ではCORSで読めない場合があります）。</div>`;
+        }
+        }
+
+        // Load md_list.json and populate select options
+        async function loadMdList() {
+        try {
+            const response = await fetch('md_list.json');
+            if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+            const mdList = await response.json();
+            
+            const select = document.getElementById('mdPath');
+            select.innerHTML = '<option value="">MDファイルを選択してください...</option>';
+            
+            mdList.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item.path;
+            option.textContent = item.title;
+            select.appendChild(option);
+            });
+            
+            return mdList;
+        } catch (err) {
+            console.error('Failed to load md_list.json:', err);
+            return [];
+        }
+        }
+
+        // UI wiring
+        const select = document.getElementById('mdPath');
+        const btn = document.getElementById('loadBtn');
+
+        btn.addEventListener('click', () => {
+        const src = select.value.trim();
+        if (!src) {
+            alert('MDファイルを選択してください');
+            return;
+        }
+        loadMarkdown(src);
+        const u = new URL(location.href);
+        u.searchParams.set('src', src);
+        history.replaceState({}, '', u);
+        });
+
+        // Initialize
+        (async function() {
+        const mdList = await loadMdList();
+        
+        // Allow query param ?src=path/to.md
+        const params = new URLSearchParams(location.search);
+        const initialSrc = params.get('src');
+        
+        if (initialSrc) {
+            select.value = initialSrc;
+            loadMarkdown(initialSrc);
+        } else if (mdList.length > 0) {
+            // Load first item by default
+            select.value = mdList[0].path;
+            loadMarkdown(mdList[0].path);
+        }
+        })();
+
+        // Reload Mermaid theme when toggling dark mode (re-render diagrams)
+        const observer = new MutationObserver(() => {
+        // Re-run mermaid to apply theme
+        document.querySelectorAll('.mermaid').forEach(el => {
+            const txt = el.textContent;
+            const repl = el.cloneNode(false);
+            repl.textContent = txt;
+            el.replaceWith(repl);
+        });
+        mermaid.initialize({ startOnLoad: false, theme: root.classList.contains('dark') ? 'dark' : 'default' });
+        mermaid.run({ querySelector: '.mermaid' }).then(() => {
+            enableZoom();
+        });
+        });
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    </script>
+</body>
+</html>

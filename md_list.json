@@ -1,0 +1,38 @@
+[
+    {
+        "title": "TLS1.2",
+        "path": "Web-TLS1.2.md"
+    },
+    {
+        "title": "TLS1.3",
+        "path": "Web-TLS1.3.md"
+    },
+    {
+        "title": "DNSキャッシュポイズニング",
+        "path": "dns_cashposening.md"
+    },
+    {
+        "title": "AWS Autoscaling",
+        "path": "Autoscaling.md"
+    },
+    {
+        "title": "CICD_GitHub_AWS",
+        "path": "github_aws-cicd.md"
+    },
+    {
+        "title": "OAuth 2.0",
+        "path": "OAuth2.md"
+    },
+    {
+        "title": "OpenID Connect EntraID",
+        "path": "EntraID_OIDC.md"
+    },
+    {
+        "title": "パスキー",
+        "path": "Passkey_Register.md"
+    },
+    {
+        "title": "reCAPTCHA",
+        "path": "reCAPTCHA.md"
+    }
+]
